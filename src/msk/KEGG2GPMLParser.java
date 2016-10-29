@@ -1,5 +1,6 @@
 package msk;
 
+import java.awt.Color;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -30,22 +31,31 @@ public class KEGG2GPMLParser {
 
 	public static void main(String[] args) throws Exception {
 		DataSourceTxt.init();
-		
-		Map<String, Set<String>> pathwayGeneLink = KEGG2GPMLParser.getPathwayGeneLinks();
+
+		// retrieves a list of human pathways (identifier + name)
 		Map<String, String> pathwayNames = KEGG2GPMLParser.getPathwayName();
+
+		// retrieves a link between human pathways and genes
+		Map<String, Set<String>> pathwayGeneLink = KEGG2GPMLParser.getPathwayGeneLinks();
+		
+		// retrieves a link between pathways and compounds (some pathways might not exist in human 
+		// and are filtered out based on pathwayNames map
 		Map<String, Set<String>> pathwayCompoundLink = KEGG2GPMLParser.getPathwayCompoundLinks();
 		
+		// create directory in which new GPML files are created
 		File outputDir = new File("output");
 		outputDir.mkdir();
 		
+		// creates a GPML file for each human pathway
 		for(String p : pathwayNames.keySet()) {
 			Pathway pathway = new Pathway();
 			pathway.getMappInfo().setMapInfoName(pathwayNames.get(p));
 			pathway.getMappInfo().setMapInfoDataSource("KEGG: " + p);
 			pathway.getMappInfo().setOrganism("Homo sapiens");
 			
+			// adds all genes in the pathway
 			if(pathwayGeneLink.containsKey(p)) {
-				int y = 65;
+				int y = 70;
 				for(String g : pathwayGeneLink.get(p)) {
 					PathwayElement pe = PathwayElement.createPathwayElement(ObjectType.DATANODE);
 					pe.setDataNodeType(DataNodeType.GENEPRODUCT);
@@ -60,11 +70,13 @@ public class KEGG2GPMLParser {
 					y += 30;
 				}
 			}
+			// adds all compounds in the pathway
 			if(pathwayCompoundLink.containsKey(p)) {
-				int y = 65;
+				int y = 70;
 				for(String c : pathwayCompoundLink.get(p)) {
 					PathwayElement pe = PathwayElement.createPathwayElement(ObjectType.DATANODE);
 					pe.setDataNodeType(DataNodeType.METABOLITE);
+					pe.setColor(Color.BLUE);
 					pe.setMCenterX(165);
 					pe.setMCenterY(y);
 					pe.setMHeight(20);
@@ -77,6 +89,7 @@ public class KEGG2GPMLParser {
 				}
 			}
 			
+			// writes the pathway into a GPML file
 			pathway.writeToXml(new File(outputDir, p + ".gpml"), true);
 		}
 	}
