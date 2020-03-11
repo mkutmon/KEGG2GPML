@@ -29,73 +29,114 @@ import org.pathvisio.core.model.PathwayElement;
  */
 public class KEGG2GPMLParser {
 
-	public static void main(String[] args) throws Exception {
+	public Map<String, Set<String>> pathwayGeneLink;
+	public Map<String, Set<String>> pathwayCompoundLink;
+	public Map<String, String> pathwayNames;
+	
+	public KEGG2GPMLParser() {
+		pathwayGeneLink = new HashMap<String, Set<String>>();
+		pathwayCompoundLink = new HashMap<String, Set<String>>();
+		pathwayNames = new HashMap<String, String>();
+	}
+	
+	public void createGPMLFiles(String species, File outputDir) throws Exception {
 		DataSourceTxt.init();
-
-		// retrieves a list of human pathways (identifier + name)
-		Map<String, String> pathwayNames = KEGG2GPMLParser.getPathwayName();
+		
+		// retrieves a list of pathways (identifier + name)
+		System.out.println("Retrieve pathway list.");
+		getPathwayName(species);
+		System.out.println(pathwayNames.size() + " pathways found for " + getSpeciesName(species) + ".");
 
 		// retrieves a link between human pathways and genes
-		Map<String, Set<String>> pathwayGeneLink = KEGG2GPMLParser.getPathwayGeneLinks();
+		System.out.println("Retrieve gene lists.");
+		getPathwayGeneLinks(species);
 		
 		// retrieves a link between pathways and compounds (some pathways might not exist in human 
 		// and are filtered out based on pathwayNames map
-		Map<String, Set<String>> pathwayCompoundLink = KEGG2GPMLParser.getPathwayCompoundLinks();
-		
-		// create directory in which new GPML files are created
-		File outputDir = new File("output");
-		outputDir.mkdir();
+		System.out.println("Retrieve compound lists.");
+		getPathwayCompoundLinks(species);
 		
 		// creates a GPML file for each human pathway
+		System.out.println("Save pathways as GPML.");
 		for(String p : pathwayNames.keySet()) {
-			Pathway pathway = new Pathway();
-			pathway.getMappInfo().setMapInfoName(pathwayNames.get(p));
-			pathway.getMappInfo().setMapInfoDataSource("KEGG: " + p);
-			pathway.getMappInfo().setOrganism("Homo sapiens");
-			
-			// adds all genes in the pathway
-			if(pathwayGeneLink.containsKey(p)) {
-				int y = 70;
-				for(String g : pathwayGeneLink.get(p)) {
-					PathwayElement pe = PathwayElement.createPathwayElement(ObjectType.DATANODE);
-					pe.setDataNodeType(DataNodeType.GENEPRODUCT);
-					pe.setMCenterX(65);
-					pe.setMCenterY(y);
-					pe.setMHeight(20);
-					pe.setMWidth(80);
-					pe.setTextLabel(g);
-					pe.setElementID(g);
-					pe.setDataSource(DataSource.getExistingBySystemCode("L"));
-					pathway.add(pe);
-					y += 30;
-				}
-			}
-			// adds all compounds in the pathway
-			if(pathwayCompoundLink.containsKey(p)) {
-				int y = 70;
-				for(String c : pathwayCompoundLink.get(p)) {
-					PathwayElement pe = PathwayElement.createPathwayElement(ObjectType.DATANODE);
-					pe.setDataNodeType(DataNodeType.METABOLITE);
-					pe.setColor(Color.BLUE);
-					pe.setMCenterX(165);
-					pe.setMCenterY(y);
-					pe.setMHeight(20);
-					pe.setMWidth(80);
-					pe.setTextLabel(c);
-					pe.setElementID(c);
-					pe.setDataSource(DataSource.getExistingBySystemCode("Ck"));
-					pathway.add(pe);
-					y += 30;
-				}
-			}
-			
-			// writes the pathway into a GPML file
+			Pathway pathway = createPathway(p, species);
 			pathway.writeToXml(new File(outputDir, p + ".gpml"), true);
 		}
+		
+		System.out.println(pathwayNames.size() + " pathways converted to GPML and saved in " + outputDir.getAbsolutePath());
+	}
+	
+	public static void main(String[] args) throws Exception {
+		if(args.length == 2) {
+			String species = args[0];
+			String outputFile = args[1];
+			// create directory in which new GPML files are created
+			File outputDir = new File(outputFile);
+			outputDir.mkdir();
+			
+			KEGG2GPMLParser parser = new KEGG2GPMLParser();
+			parser.createGPMLFiles(species, outputDir);
+		} else {
+			System.err.println("Please provide species (e.g. hsa for human) and output directory.");
+		}
+	}
+	
+	private String getSpeciesName(String species) throws Exception {
+		URL urlPathways = new URL("http://rest.kegg.jp/info/" + species);
+		URLConnection con = urlPathways.openConnection();
+		BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
+		String line = reader.readLine();
+		String [] buffer = line.split("           ");
+		String [] buffer2 = buffer[1].split("\\(");
+		return buffer2[0].substring(0, buffer2[0].length()-1);
+	}
+	
+	private Pathway createPathway(String p, String species) throws Exception {
+		Pathway pathway = new Pathway();
+		pathway.getMappInfo().setMapInfoName(pathwayNames.get(p));
+		pathway.getMappInfo().setMapInfoDataSource("KEGG: " + p);
+		pathway.getMappInfo().setOrganism(getSpeciesName(species));
+		
+		// adds all genes in the pathway
+		if(pathwayGeneLink.containsKey(p)) {
+			int y = 70;
+			for(String g : pathwayGeneLink.get(p)) {
+				PathwayElement pe = PathwayElement.createPathwayElement(ObjectType.DATANODE);
+				pe.setDataNodeType(DataNodeType.GENEPRODUCT);
+				pe.setMCenterX(65);
+				pe.setMCenterY(y);
+				pe.setMHeight(20);
+				pe.setMWidth(80);
+				pe.setTextLabel(g);
+				pe.setElementID(g);
+				pe.setDataSource(DataSource.getExistingBySystemCode("L"));
+				pathway.add(pe);
+				y += 30;
+			}
+		}
+		// adds all compounds in the pathway
+		if(pathwayCompoundLink.containsKey(p)) {
+			int y = 70;
+			for(String c : pathwayCompoundLink.get(p)) {
+				PathwayElement pe = PathwayElement.createPathwayElement(ObjectType.DATANODE);
+				pe.setDataNodeType(DataNodeType.METABOLITE);
+				pe.setColor(Color.BLUE);
+				pe.setMCenterX(165);
+				pe.setMCenterY(y);
+				pe.setMHeight(20);
+				pe.setMWidth(80);
+				pe.setTextLabel(c);
+				pe.setElementID(c);
+				pe.setDataSource(DataSource.getExistingBySystemCode("Ck"));
+				pathway.add(pe);
+				y += 30;
+			}
+		}
+		
+		return pathway;
 	}
 
-	private static Map<String, Set<String>> getPathwayCompoundLinks() throws Exception {
-		Map<String, Set<String>> map = new HashMap<String, Set<String>>();
+	private void getPathwayCompoundLinks(String species) throws Exception {
 		URL urlPathways = new URL("http://rest.kegg.jp/link/pathway/compound");
 		URLConnection con = urlPathways.openConnection();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
@@ -103,20 +144,18 @@ public class KEGG2GPMLParser {
 		while((line = reader.readLine()) != null) {
 			String [] buffer = line.split("\t");
 			String p = buffer[1].replace("path:", "");
-			p = p.replace("map", "hsa");
+			p = p.replace("map", species);
 			String c = buffer[0].replace("cpd:", "");
-			if(!map.containsKey(p)) {
-				map.put(p, new HashSet<String>());
+			if(!pathwayCompoundLink.containsKey(p)) {
+				pathwayCompoundLink.put(p, new HashSet<String>());
 			}
-			map.get(p).add(c);
+			pathwayCompoundLink.get(p).add(c);
 		}
 		reader.close();
-		return map;
 	}
 
-	private static Map<String, String> getPathwayName() throws Exception {
-		Map<String, String> map = new HashMap<String, String>();
-		URL urlPathways = new URL("http://rest.kegg.jp/list/pathway/hsa");
+	private void getPathwayName(String species) throws Exception {
+		URL urlPathways = new URL("http://rest.kegg.jp/list/pathway/" + species);
 		URLConnection con = urlPathways.openConnection();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
 		String line;
@@ -125,22 +164,20 @@ public class KEGG2GPMLParser {
 			String p = buffer[0].replace("path:", "");
 			String [] buffer2 = buffer[1].split(" - ");
 			String n = buffer2[0];
-			map.put(p, n);
+			pathwayNames.put(p, n);
 		}
 		reader.close();
-		return map;
 	}
 
-	private static Map<String, Set<String>> getPathwayGeneLinks() throws Exception {
-		Map<String, Set<String>> pathwayGeneLink = new HashMap<String, Set<String>>();
-		URL urlPathways = new URL("http://rest.kegg.jp/link/hsa/pathway");
+	private void getPathwayGeneLinks(String species) throws Exception {
+		URL urlPathways = new URL("http://rest.kegg.jp/link/" + species + "/pathway");
 		URLConnection con = urlPathways.openConnection();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()));
 		String line;
 		while((line = reader.readLine()) != null) {
 			String [] buffer = line.split("\t");
 			String p = buffer[0].replace("path:", "");
-			String g = buffer[1].replace("hsa:", "");
+			String g = buffer[1].replace(species + ":", "");
 			if(!pathwayGeneLink.containsKey(p)) {
 				pathwayGeneLink.put(p, new HashSet<String>());
 			}
@@ -148,6 +185,5 @@ public class KEGG2GPMLParser {
 		}
 		
 		reader.close();
-		return pathwayGeneLink;
 	}
 }
